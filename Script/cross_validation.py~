@@ -1,0 +1,109 @@
+#! /import/bc2/home/nimwegen/GROUP/local/bin/python
+
+def arguments():
+    import argparse
+    parser = argparse.ArgumentParser(description="""By providing a data file, this program
+    splits the data into n adjoint training/test set and run the classification algorithm
+    on them, as a result it reports AUC for each of the runs. """)
+
+    parser.add_argument('-i', dest='input_file', action='store', required=True, \
+                        help="""The data file that at each row contains a TAB seperated
+                        data where the first column represents the class ID. The following
+                        fields are reserved for the different features.""")
+    parser.add_argument('-f', dest='feature_file', action='store', required=True, \
+                        help="""A file that contains the length of feature vector for
+                        each of the features. For example, if a feature accepts 'yes' or 'no'
+                        as its values, then the feature vector length or dimension is 2.
+                        At each line we have two values that are seperated by TAB. First
+                        one is the feature ID (just a number) and second is the feature length.""")
+    # parser.add_argument('-n', dest='number_of_subsets', action='store', required=True, type=int, \
+    #                     help="""This number represents that how many subset must be selected for the
+    #                     training purpose""")
+    parser.add_argument('-p', dest='percentage_of_training', action='store', required=True, type=float, \
+                        help="""The percentage of items in the training set, which is going to be the
+                        similar number for each of the classes.""")
+    parser.add_argument('-o', dest='destination_dir', action='store', required=False, default='.', \
+                        help="""Output directory that by default is at the current working directory.""")
+    args = parser.parse_args()
+    return args
+
+
+def load_data(data_file):
+    data = {}
+    with open(data_file) as file_handler:
+        for row in csv.reader(file_handler, delimiter='\t'):
+            data.setdefault(row[0], [])
+            data[row[0]].append(row[1:])                    
+    return data
+    
+
+def running_classification_algorithm(dest_dir, featureFile, num_of_classes):
+    trainingFile = os.path.join(dest_dir, 'trainingSet')
+    testFile = os.path.join(dest_dir, 'testSet')
+    program = '/import/bc2/home/nimwegen/omidi/Classification/Program/bin/DWT_classification'
+    cmd = [program,
+           featureFile,
+           str(num_of_classes),
+           trainingFile,
+           testFile,]
+    proc = Popen(cmd, stdout=PIPE)
+    result = []
+    # print ' '.join(cmd)
+    
+    convert = lambda v: [int(v[0]), int(v[1]), float(v[2]), float(v[3])]
+    for row in csv.reader(proc.stdout, delimiter='\t'):
+        # print '\t'.join(row).rstrip()
+        result.append( convert( row ) )
+    return result
+
+
+
+if __name__ == '__main__':
+    import numpy as np
+    from subprocess import Popen, PIPE
+    import csv, random, os
+    from analyze_results import *
+    
+    args = arguments()
+    data = load_data(args.input_file)
+
+    if args.destination_dir != '.':
+        try:
+            os.mkdir(args.destination_dir)
+        except OSError:
+            print "The directory %s is already exist!" % args.destination_dir
+            print
+            None
+            
+    for c in data.keys():
+        random.shuffle(data[c])
+    
+    number_of_classes = len(data.keys())
+    number_of_subsets = int(1/args.percentage_of_training)
+    for i in xrange(number_of_subsets):
+        # making the trainign file 
+        with open(os.path.join(args.destination_dir, 'trainingSet'), 'w') as training_file:
+            for c in data.keys():
+                index = int(i*len(data[c])*args.percentage_of_training)
+                if i == (number_of_subsets-1):
+                    for row in data[c][index:]:
+                        training_file.write('%s\t%s\n' % (c, '\t'.join(row)))                    
+                else:                    
+                    for row in data[c][index:index+int(len(data[c])*args.percentage_of_training)]:
+                        training_file.write('%s\t%s\n' % (c, '\t'.join(row)))
+                
+        # making the test file
+        with open(os.path.join(args.destination_dir, 'testSet'), 'w') as test_file:
+            for c in data.keys():
+                index = int(i*len(data[c])*args.percentage_of_training)
+                for row in data[c][:index]:
+                    test_file.write('%s\t%s\n' % (c, '\t'.join(row)))
+                index = int((i+1)*len(data[c])*args.percentage_of_training)
+                for row in data[c][index:]:
+                    test_file.write('%s\t%s\n' % (c, '\t'.join(row)))
+        results = running_classification_algorithm(args.destination_dir, args.feature_file, number_of_classes)
+        
+        # specificity_sensitivity(results)
+        loss_function(results)
+    
+    
