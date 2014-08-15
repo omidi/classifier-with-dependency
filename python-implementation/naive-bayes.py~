@@ -1,0 +1,129 @@
+
+import csv
+import operator
+import numpy as np
+
+pseudo_count = 0.5
+
+def arguments():
+    import argparse
+    parser = argparse.ArgumentParser(description='Performing Naive Bayes over the data')
+    parser.add_argument('-t', '--trainData',
+                    action="store", dest="trainData", type=str
+                    )
+    parser.add_argument('-s', '--testData',
+                        action="store", dest="testData", type=str
+                        )    
+    results = parser.parse_args()
+    return results
+
+
+def loadAllData(trainFile, testFile):
+    zeroIndexed = False 
+    with open(trainFile) as infTrain:
+        with open(testFile) as infTest:   
+            featureLength = len(infTrain.readline().split()) - 1
+            infTrain.seek(0) # go back to the beginning of the file 
+            trainData = [map(int, line.split()) for line in infTrain] 
+            testData = [map(int, line.split()) for line in infTest]
+    featureMatrix = np.matrix(trainData + testData, dtype=int)
+    trainMatrix = np.matrix(trainData, dtype=int)
+    testMatrix = np.matrix(testData, dtype=int)
+    # counting the number of features for each column
+    minFeature, maxFeature = \
+      featureMatrix[:, 1:].min(axis=0), featureMatrix[:, 1:].max(axis=0)
+    if np.any(minFeature == 0):  # not taking the class column (1-st column)
+        zeroIndexed = true
+    featureLengthMatrix = (maxFeature - minFeature + 1)
+    featureLengthVector = np.array([featureLengthMatrix[0, i] for i in xrange(featureLength)])
+    return trainMatrix, testMatrix, featureLengthVector, zeroIndexed
+    
+    
+                
+def loadTrainingData(infile):
+    data = {}
+    with open(infile) as inf:
+        for record in csv.reader(inf, delimiter='\t'):
+            classId = int(record[0])
+            data.setdefault( classId, [{} for f in xrange(len(record) - 1)] )
+            for i in xrange(len(record) - 1):
+                data[classId][i].setdefault(record[i+1], 0.)
+                data[classId][i][record[i+1]] += 1.0
+    return data
+
+
+def probabilityValue(v, total, n):
+    return (v + pseudo_count) / (total + pseudo_count*n)
+    
+
+def transferToProbabilities(data):
+    probability = {}
+    for classId in data:
+        probability.setdefault( classId, [] )
+        for feature in data[classId]:
+            normalization = sum(feature.values())
+            feature_length = len(feature.keys())
+            prob = dict( [(key, probabilityValue(val, normalization, feature_length))
+                          for key, val in feature.items()] )
+            probability[classId].append(prob)
+    return probability
+
+
+def likelihoodOfData(data, model):
+    likelihood = {}
+    for classId in model.keys():
+        likelihood[classId] = 0.
+        for i, feature in enumerate(data):
+            try:          
+                likelihood[classId] += np.log(model[classId][i][feature])
+            except KeyError:
+                likelihood[classId] += np.log(0.000001)
+    return likelihood            
+
+
+def checkPrediction(real, prediction):
+    return '+' if real==prediction else '-'
+
+
+def parseTestData(infile, model):
+    with open(infile) as inf:
+        for record in csv.reader(inf, delimiter='\t'):
+            likelihood = likelihoodOfData(record[1:], model)
+            prediction = max(likelihood.iteritems(), key=operator.itemgetter(1))[0]
+            normalization = sum( map(np.exp ,likelihood.values()) )
+            print '\t'.join([
+                str(prediction),
+                str(np.exp(likelihood[prediction]) / normalization),
+                checkPrediction(record[0], str(prediction)),
+                ])
+
+            
+def trainingFeatureProbabilities(trainingMatrix, zeroIndexed, featureVector):
+    offset = 0
+    if not zeroIndexed:
+        offset = 1
+    classes = {}
+    numRows, numCols = trainingMatrix.shape()
+    for rowIndex in xrange(numRows):
+        classes.setdefault(trainingMatrix[0, rowIndex],
+            np.zeros(len(featureVector), dtype=float64))
+        for colIndex in xrange(1, numCols):
+            featureIndex = trainingMatrix[rowIndex, colIndex]
+            classes[trainingMatrix[rowIndex, 0]][colIndex] 
+                
+        
+
+            
+def main():
+    args = arguments()
+    trainMatrix, testMatrix, featureLengthVector, zeroIndexed = \
+        loadAllData(args.trainData, args.testData)
+    
+    exit()
+    trainData = loadTrainingData(args.trainData)
+    model = transferToProbabilities(trainData)
+    parseTestData(args.testData, model)
+    
+if __name__ == '__main__':
+    main()
+    
