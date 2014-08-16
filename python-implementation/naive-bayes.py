@@ -156,7 +156,11 @@ def main():
     args = arguments()
     model, testMatrix, featureLengthVector, zeroIndexed = \
         loadAllData(args.trainData, args.testData, args.featureLength)
-    print initializePairFreqMatrix(featureLengthVector)
+    pairFreqMatrix = initializePairFreqMatrix(featureLengthVector)
+    for i in xrange(testMatrix.shape[0]):
+        test = np.ravel( testMatrix[i,1:] )        
+        addToPairFreqMatrix(pairFreqMatrix, test, zeroIndexed)
+    print pairFreqMatrix[0][1][6][1]
     exit()        
     predictions = classifiyTestSet(model, testMatrix, zeroIndexed)
     test = lambda p: '+' if p[0]==p[1] else '-'
