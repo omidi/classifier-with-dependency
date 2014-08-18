@@ -2,7 +2,8 @@
 import csv
 import operator
 import numpy as np
-from feature_pairs import * 
+from feature_pairs import *
+from dependency_model import DependecyModel
 
 pseudo_count = 0.5
 
@@ -80,7 +81,7 @@ def parseTestData(infile, model):
                 ])
 
         
-def trainingFeatureProbabilities(trainingMatrix, zeroIndexed, featureVector):
+def independentProbabilities(trainingMatrix, zeroIndexed, featureVector):
     offset = 0
     if not zeroIndexed:
         offset = 1
@@ -119,9 +120,8 @@ def loadAllData(trainFile, testFile, featureLengthFile):
     if np.any(minFeature == 0):  # not taking the class column (1-st column)
         zeroIndexed = true
     featureLengthVector = np.array([int(line.split()[-1])
-                                    for line in open(featureLengthFile)])
-    model = trainingFeatureProbabilities(trainMatrix, zeroIndexed, featureLengthVector) 
-    return model, testMatrix, featureLengthVector, zeroIndexed
+                                    for line in open(featureLengthFile)])    
+    return testMatrix, trainMatrix, featureLengthVector, zeroIndexed
 
 
 def classifiyTestSet(model, testMatrix, zeroIndexed):
@@ -151,17 +151,31 @@ def performanceCheck(predictions):
     correctnessTest = lambda p: 1 if p[0]==p[1] else 0
     return np.sum([correctnessTest(p) for p in predictions])
 
+
+def generateDependencyModels(trainMatrix, featureLengthVector, zeroIndexed):
+    dependencyModel = {}
+    for n in xrange(trainMatrix.shape[0]):  # go row by row
+        classId = trainMatrix[n, 0]     # the first column is reserved for the classID
+        row = np.ravel(trainMatrix[n, 1:])
+        dependencyModel.setdefault(classId, DependecyModel(featureLengthVector, zeroIndexed))
+        dependencyModel[classId].addToPairFreqMatrix(row)
+    return dependencyModel
+        
     
 def main():
     args = arguments()
-    model, testMatrix, featureLengthVector, zeroIndexed = \
+    testMatrix, trainMatrix, featureLengthVector, zeroIndexed = \
         loadAllData(args.trainData, args.testData, args.featureLength)
+    model = independentProbabilities(trainMatrix, zeroIndexed, featureLengthVector)
+    dependencyModel = generateDependencyModels(trainMatrix, featureLengthVector, zeroIndexed)
+    
+    print dependencyModel[1].calculateLogR()
+    exit()
     pairFreqMatrix = initializePairFreqMatrix(featureLengthVector)
-    for i in xrange(testMatrix.shape[0]):
-        test = np.ravel( testMatrix[i,1:] )        
+    for i in xrange(trainMatrix.shape[0]):
+        test = np.ravel( trainMatrix[i,1:] )        
         addToPairFreqMatrix(pairFreqMatrix, test, zeroIndexed)
-    print pairFreqMatrix[0][1][6][1]
-    exit()        
+    createDependencyMatrix(pairFreqMatrix)
     predictions = classifiyTestSet(model, testMatrix, zeroIndexed)
     test = lambda p: '+' if p[0]==p[1] else '-'
     for pred in predictions:

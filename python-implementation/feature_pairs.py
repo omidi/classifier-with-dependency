@@ -1,11 +1,13 @@
 
 import numpy as np
-import itertools 
+import itertools
+from scipy.special import gammaln
+
 
 pseudo_count = 0.5
 
 def initializePairFreqMatrix(featureLengthVector):
-    numOfFeatures = len(featureLengthVector)    
+    numOfFeatures = len(featureLengthVector)
     pairFreqMatrix = np.empty((numOfFeatures, numOfFeatures), dtype=np.object)
     for pair in itertools.combinations(np.arange(numOfFeatures), 2):
         numRows, numCols = featureLengthVector[pair[0]], featureLengthVector[pair[1]]
@@ -21,10 +23,15 @@ def addToPairFreqMatrix(pairFreqMatrix, row, zeroIndexed):
     numOfFeatures = pairFreqMatrix.shape[0]
     for pair in itertools.combinations(np.arange(numOfFeatures), 2):
             i,j = row[pair[0]] - offset, row[pair[1]] - offset
-            pairFreqMatrix[pair][i][j] += 1.0
+            pairFreqMatrix[pair][i][j] += 1.0    
     return 0
 
 
 def createDependencyMatrix(pairFreqMatrix):
-    None
+    numOfFeatures = pairFreqMatrix.shape[0]
+    for pair in itertools.combinations(np.arange(numOfFeatures), 2):
+        m = pairFreqMatrix[pair]
+        print pair
+        print m
+        exit()
     
