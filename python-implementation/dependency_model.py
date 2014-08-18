@@ -13,7 +13,7 @@ class DependecyModel:
         self.numOfFeatures = len(featureLengthVector)
         self.pairFreqMatrix = np.empty((self.numOfFeatures, self.numOfFeatures), dtype=np.object)
         self.singleFreqMatrix = np.empty(self.numOfFeatures, dtype=np.object)
-        self.marginalLikelihood = np.zeros(self.numOfFeatures)
+        self.marginalLikelihood = np.empty(self.numOfFeatures, dtype=np.object)
         self.pseudo_count = np.zeros(self.numOfFeatures)        
         for i in xrange(self.numOfFeatures):
             self.pseudo_count[i] = 1.0 / float(featureLengthVector[i])
@@ -23,22 +23,40 @@ class DependecyModel:
             pseudo_count = self.pseudo_count[pair[0]] * self.pseudo_count[pair[1]]
             self.pairFreqMatrix[pair] = \
               np.repeat(pseudo_count, numRows*numCols).reshape(numRows, numCols)
+
+        # The original LogR matrix that comes from the training data
+        self.LogR = np.matrix(np.zeros(self.numOfFeatures**2).reshape(self.numOfFeatures, \
+                                                                      self.numOfFeatures))
         # changing the offset according to the zeroIndexed value
         if not zeroIndexed:
-            self.offset = 1
-        # parameters for the re-scaling logR matrix
+            self.__offset = 1
+        # parameter for the re-scaling logR matrix
         self.alpha = 0.
-        self.beta = 0.
-            
+        # the determinant of the M(L(R)) matrix. NOTE: it's in log-space
+        self.determinant = 0.
 
+
+    def finalizeModel(self):
+        self.calculateLogR()
+        self.rescalingParameter()
+        rescaled_R = self.rescaleMatrix(self.LogR)
+        self.determinant = np.log(np.linalg.det(self.laplacian(rescaled_R)[1:, 1:]))
+        # print((rescaled_R)[1:, 1:])
+        return 0
+        
+    
     def addToPairFreqMatrix(self, row):
         for pair in itertools.combinations(np.arange(self.numOfFeatures), 2):
-            i,j = (row[pair[0]] - self.offset), (row[pair[1]] - self.offset)
+            i,j = (row[pair[0]] - self.__offset), (row[pair[1]] - self.__offset)
             self.pairFreqMatrix[pair][i][j] += 1.0
         for i in xrange(self.numOfFeatures):
-            self.singleFreqMatrix[i][row[i] - self.offset] += 1.0
+            self.singleFreqMatrix[i][row[i] - self.__offset] += 1.0
         return 0
 
+    
+    def giveDeterminant(self):
+        return self.determinant
+        
     
     def getPairPosition(self, pair):
         if pair[0] > pair[1]: # always the first index is smaller 
@@ -68,22 +86,16 @@ class DependecyModel:
             self.marginalLikelihood[i] = self.calculateMarginalLikelihood(i)
         for pair in itertools.combinations(np.arange(self.numOfFeatures), 2):
             self.LogR[pair[::-1]] = self.LogR[pair] = self.calculateLogR_ij(pair)
-            print(pair, self.LogR[pair])
-            
-        self.rescalingParameters()
+        self.rescalingParameter()
         return 0
 
   
     def calculateMarginalLikelihood(self, i):
-        res = .0
-        N = .0
-        for f in xrange(self.featureLengthVector[i]):            
-            res += gammaln(self.singleFreqMatrix[i][f])
-            N += self.singleFreqMatrix[i][f]
-        res -= self.featureLengthVector[i]*gammaln(self.pseudo_count[i])
-        res += gammaln(self.featureLengthVector[i]*self.pseudo_count[i])        
-        res -= gammaln(N + self.featureLengthVector[i]*self.pseudo_count[i])
-        return res 
+        res = np.zeros(self.featureLengthVector[i])
+        N = np.log(np.sum(self.singleFreqMatrix[i]))
+        for f in xrange(self.featureLengthVector[i]):
+            res[f] = np.log(self.singleFreqMatrix[i][f]) - N
+        return res
                     
     
     def calculateLogR_ij(self, pair):
@@ -99,12 +111,25 @@ class DependecyModel:
         logR -= np.sum([gammaln(N_i[a]) for a in xrange(nrows)])
         logR += nrows*gammaln(self.pseudo_count[pair[0]])
         logR -= np.sum([gammaln(N_j[b]) for b in xrange(ncols)])
-        logR += ncols*gammaln(self.pseudo_count[pair[1]])        
+        logR += ncols*gammaln(self.pseudo_count[pair[1]])
         return logR
 
     
+    def membershipTest(self, row):
+        LogR_new = self.updatedLogR(row)
+        rescaled_R_new = self.rescaleMatrix(LogR_new)
+        determinant_new = np.log(np.linalg.det(self.laplacian(rescaled_R_new)[1:, 1:]))
+        return ((determinant_new - self.determinant) + self.naiveByesScore(row))
+
+
+    def naiveByesScore(self, row):
+        score = np.sum([self.marginalLikelihood[i][row[i] - self.__offset] \
+            for i in xrange(self.numOfFeatures)])
+        return score
+                    
+    
     def updatedLogR(self, row):        
-        logR_new = np.copy(self.logR)
+        logR_new = np.copy(self.LogR)
         for pair in itertools.combinations(np.arange(self.numOfFeatures),2 ):
             i, j = pair
             freq = self.getPairPosition(pair)
@@ -113,27 +138,26 @@ class DependecyModel:
             nrows, ncols = freq.shape
             logR_new[pair] -= gammaln(N)
             logR_new[pair] += gammaln(N + 1.0)
-            logR_new[pair] -= gammaln(freq[row[i]][row[j]])
-            logR_new[pair] += gammaln(freq[row[i]][row[j]] + 1.0)
-            logR_new[pair] += gammaln(N_i[row[i]])
-            logR_new[pair] -= gammaln(N_i[row[i]] + 1.0)
-            logR_new[pair] += gammaln(N_j[row[j]])
-            logR_new[pair] -= gammaln(N_j[row[j]] + 1.0)
+            logR_new[pair] -= gammaln(freq[row[i] - self.__offset, row[j] - self.__offset])
+            logR_new[pair] += gammaln(freq[row[i] - self.__offset, row[j] - self.__offset] + 1.0)
+            logR_new[pair] += gammaln(N_i[row[i] - self.__offset])
+            logR_new[pair] -= gammaln(N_i[row[i] - self.__offset] + 1.0)
+            logR_new[pair] += gammaln(N_j[row[j] - self.__offset])
+            logR_new[pair] -= gammaln(N_j[row[j] - self.__offset] + 1.0)
             logR_new[pair[::-1]] = logR_new[pair]
         return logR_new
 
-    
-    def rescalingParameters(self):
-        M_min, M_max = np.min(self.logR), np.max(self.logR)
-        self.alpha = self.__K*np.log(10.) / (M_max - M_min)
-        self.beta = -self.__K*np.log(10.) * (M_max / (M_max - M_min))
+
+    def rescalingParameter(self):
+        M_max = np.max(self.LogR)
+        self.alpha = self.__K / M_max
         return 0
-            
+
     
     def rescaleMatrix(self, matrix):
-        new_matrix = self.beta*np.power(np.exp(matrix), self.alpha)
+        new_matrix = np.exp(self.alpha*matrix)
         for i in xrange(matrix.shape[0]):
-            new_matrix[i][i] = 0.
+            new_matrix[i,i] = 0.
         return  new_matrix
 
     
@@ -141,7 +165,6 @@ class DependecyModel:
         sums = np.ravel(np.sum(matrix, axis=1))
         new_matrix = -1.0*matrix
         for i in xrange(matrix.shape[0]):
-            new_matrix[i][i] = sums[i]
+            new_matrix[i,i] = sums[i]
         return new_matrix
-            
         

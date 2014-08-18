@@ -159,6 +159,8 @@ def generateDependencyModels(trainMatrix, featureLengthVector, zeroIndexed):
         row = np.ravel(trainMatrix[n, 1:])
         dependencyModel.setdefault(classId, DependecyModel(featureLengthVector, zeroIndexed))
         dependencyModel[classId].addToPairFreqMatrix(row)
+    for classId in dependencyModel.keys():
+        dependencyModel[classId].finalizeModel()
     return dependencyModel
         
     
@@ -167,25 +169,35 @@ def main():
     testMatrix, trainMatrix, featureLengthVector, zeroIndexed = \
         loadAllData(args.trainData, args.testData, args.featureLength)
     model = independentProbabilities(trainMatrix, zeroIndexed, featureLengthVector)
-    dependencyModel = generateDependencyModels(trainMatrix, featureLengthVector, zeroIndexed)
-    
-    print dependencyModel[1].calculateLogR()
-    exit()
-    pairFreqMatrix = initializePairFreqMatrix(featureLengthVector)
-    for i in xrange(trainMatrix.shape[0]):
-        test = np.ravel( trainMatrix[i,1:] )        
-        addToPairFreqMatrix(pairFreqMatrix, test, zeroIndexed)
-    createDependencyMatrix(pairFreqMatrix)
-    predictions = classifiyTestSet(model, testMatrix, zeroIndexed)
-    test = lambda p: '+' if p[0]==p[1] else '-'
-    for pred in predictions:
+    dependencyModel = generateDependencyModels(trainMatrix, featureLengthVector, zeroIndexed) 
+    test = lambda p, t: '+' if p==t else '-'   
+    for matrixRow in testMatrix:
+        row = np.ravel(matrixRow)  # converting it to an array
+        pred = {}
+        for classId, model in dependencyModel.items():
+            pred[classId] = model.membershipTest(row[1:])
+        bestPrediction = max(pred.iteritems(), key=operator.itemgetter(1))[0]
+        evidence = np.sum(np.exp(pred.values()))
+        p = np.exp(pred[bestPrediction]) / evidence        
+        naive = {}
+        for classId, model in dependencyModel.items():
+            naive[classId] = model.naiveByesScore(row[1:])
+        naiveBestPrediction = max(pred.iteritems(), key=operator.itemgetter(1))[0]
+        evidence = np.sum(np.exp(naive.values()))
+        naiveP = np.exp(naive[bestPrediction]) / evidence
         print '\t'.join([
-            str(pred[0]),
-            str(pred[1]),
-            str(pred[2]),
-            test(pred),
+            str(bestPrediction),
+            str(p),
+            str(naiveBestPrediction),
+            str(naiveP),
+            str(row[0]),
+            test(bestPrediction, row[0]),
+            test(naiveBestPrediction, row[0]),
             ])
-    print performanceCheck(predictions)    
+        
+
+
+    # print performanceCheck(predictions)    
     
 if __name__ == '__main__':
     main()
