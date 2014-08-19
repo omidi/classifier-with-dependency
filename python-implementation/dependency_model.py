@@ -1,4 +1,5 @@
 
+
 import numpy as np
 import itertools
 from scipy.special import gammaln
@@ -6,7 +7,7 @@ from scipy.special import gammaln
 class DependecyModel:
     __pseudo_count = 0.5
     __offset = 0
-    __K = 10.0   # rescaling parameter
+    __K = 5.0   # rescaling parameter
     
     def __init__(self, featureLengthVector, zeroIndexed):
         self.featureLengthVector = featureLengthVector        
@@ -14,7 +15,8 @@ class DependecyModel:
         self.pairFreqMatrix = np.empty((self.numOfFeatures, self.numOfFeatures), dtype=np.object)
         self.singleFreqMatrix = np.empty(self.numOfFeatures, dtype=np.object)
         self.marginalLikelihood = np.empty(self.numOfFeatures, dtype=np.object)
-        self.pseudo_count = np.zeros(self.numOfFeatures)        
+        self.pseudo_count = np.zeros(self.numOfFeatures)
+        # self.pseudo_count = np.repeat(self.__pseudo_count, self.numOfFeatures)        
         for i in xrange(self.numOfFeatures):
             self.pseudo_count[i] = 1.0 / float(featureLengthVector[i])
             self.singleFreqMatrix[i] = np.repeat(self.pseudo_count[i], featureLengthVector[i])
@@ -34,6 +36,7 @@ class DependecyModel:
         self.alpha = 0.
         # the determinant of the M(L(R)) matrix. NOTE: it's in log-space
         self.determinant = 0.
+        
 
 
     def finalizeModel(self):
@@ -41,10 +44,14 @@ class DependecyModel:
         self.rescalingParameter()
         rescaled_R = self.rescaleMatrix(self.LogR)
         self.determinant = np.log(np.linalg.det(self.laplacian(rescaled_R)[1:, 1:]))
-        # print((rescaled_R)[1:, 1:])
+        # self.determinant = \
+        #   np.log(np.linalg.det(self.addingIdentityMatrix(self.laplacian(rescaled_R))))
         return 0
-        
+
     
+    def addingIdentityMatrix(self, matrix):
+        return matrix + np.identity(matrix.shape[0])
+        
     def addToPairFreqMatrix(self, row):
         for pair in itertools.combinations(np.arange(self.numOfFeatures), 2):
             i,j = (row[pair[0]] - self.__offset), (row[pair[1]] - self.__offset)
@@ -88,14 +95,6 @@ class DependecyModel:
             self.LogR[pair[::-1]] = self.LogR[pair] = self.calculateLogR_ij(pair)
         self.rescalingParameter()
         return 0
-
-  
-    def calculateMarginalLikelihood(self, i):
-        res = np.zeros(self.featureLengthVector[i])
-        N = np.log(np.sum(self.singleFreqMatrix[i]))
-        for f in xrange(self.featureLengthVector[i]):
-            res[f] = np.log(self.singleFreqMatrix[i][f]) - N
-        return res
                     
     
     def calculateLogR_ij(self, pair):
@@ -119,6 +118,9 @@ class DependecyModel:
         LogR_new = self.updatedLogR(row)
         rescaled_R_new = self.rescaleMatrix(LogR_new)
         determinant_new = np.log(np.linalg.det(self.laplacian(rescaled_R_new)[1:, 1:]))
+        # determinant_new = \
+        #   np.log(np.linalg.det(self.addingIdentityMatrix(self.laplacian(rescaled_R_new))))
+        # print determinant_new, '\t', self.determinant
         return ((determinant_new - self.determinant) + self.naiveByesScore(row))
 
 
@@ -147,6 +149,14 @@ class DependecyModel:
             logR_new[pair[::-1]] = logR_new[pair]
         return logR_new
 
+    
+    def calculateMarginalLikelihood(self, i):
+        res = np.zeros(self.featureLengthVector[i])
+        N = np.log(np.sum(self.singleFreqMatrix[i]))
+        for f in xrange(self.featureLengthVector[i]):
+            res[f] = np.log(self.singleFreqMatrix[i][f]) - N
+        return res    
+    
 
     def rescalingParameter(self):
         M_max = np.max(self.LogR)
