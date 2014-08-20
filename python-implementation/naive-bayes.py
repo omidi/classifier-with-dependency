@@ -169,7 +169,9 @@ def main():
     testMatrix, trainMatrix, featureLengthVector, zeroIndexed = \
         loadAllData(args.trainData, args.testData, args.featureLength)
     model = independentProbabilities(trainMatrix, zeroIndexed, featureLengthVector)
-    dependencyModel = generateDependencyModels(trainMatrix, featureLengthVector, zeroIndexed) 
+    dependencyModel = generateDependencyModels(trainMatrix, featureLengthVector, zeroIndexed)
+    print dependencyModel[1].getPairPosition((0,1))
+    exit()
     test = lambda p, t: '+' if p==t else '-'   
     for matrixRow in testMatrix:
         row = np.ravel(matrixRow)  # converting it to an array

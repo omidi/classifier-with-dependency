@@ -7,7 +7,7 @@ from scipy.special import gammaln
 class DependecyModel:
     __pseudo_count = 0.5
     __offset = 0
-    __K = 5.0   # rescaling parameter
+    __K = 1.0   # rescaling parameter
     
     def __init__(self, featureLengthVector, zeroIndexed):
         self.featureLengthVector = featureLengthVector        
@@ -93,6 +93,7 @@ class DependecyModel:
             self.marginalLikelihood[i] = self.calculateMarginalLikelihood(i)
         for pair in itertools.combinations(np.arange(self.numOfFeatures), 2):
             self.LogR[pair[::-1]] = self.LogR[pair] = self.calculateLogR_ij(pair)
+            # print pair, self.LogR[pair]
         self.rescalingParameter()
         return 0
                     
@@ -160,6 +161,10 @@ class DependecyModel:
 
     def rescalingParameter(self):
         M_max = np.max(self.LogR)
+        if M_max < self.__K:
+            M_max = 1.
+            self.alpha = 1.0
+            return 0
         self.alpha = self.__K / M_max
         return 0
 
