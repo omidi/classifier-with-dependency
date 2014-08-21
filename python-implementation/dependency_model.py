@@ -7,7 +7,7 @@ from scipy.special import gammaln
 class DependecyModel:
     __pseudo_count = 0.5
     __offset = 0
-    __K = 5.0   # rescaling parameter
+    __K = 10.   # rescaling parameter
     
     def __init__(self, featureLengthVector, zeroIndexed):
         self.featureLengthVector = featureLengthVector        
@@ -38,6 +38,7 @@ class DependecyModel:
         self.determinant = 0.
         # initialzing single column likelihoood
         self.singleColumnLikelihood = np.zeros(self.numOfFeatures)
+        self.independentLikelihood = 0.
         
 
 
@@ -46,13 +47,28 @@ class DependecyModel:
         self.rescalingParameter()
         rescaled_R = self.rescaleMatrix(self.LogR)
         self.determinant = np.log(np.linalg.det(self.laplacian(rescaled_R)[1:, 1:]))
+        # self.determinant = np.log(np.linalg.det(self.laplacian(rescaled_R) + \
+        #                                         np.identity(self.numOfFeatures)))        
         self.singleColumnLikelihood = np.array([self.calculateSingleColumnLikelihood(i) \
                                         for i in xrange(self.numOfFeatures)])
+        self.independentLikelihood = np.sum(self.singleColumnLikelihood)
         # self.determinant = \
         #   np.log(np.linalg.det(self.addingIdentityMatrix(self.laplacian(rescaled_R))))
         return 0
 
-    
+
+    def fittingRho(self):
+        rescaled_R = self.rescaleMatrix(self.LogR)        
+        rho = 0.01
+        for i in xrange(100):
+            determinant = np.log(np.linalg.det(self.laplacian(rescaled_R) + \
+                                                    rho*np.identity(self.numOfFeatures)))
+            print rho,'\t', determinant
+            rho += 0.01
+        return 0
+            
+            
+
     def addingIdentityMatrix(self, matrix):
         return matrix + np.identity(matrix.shape[0])
 
@@ -102,8 +118,8 @@ class DependecyModel:
             self.marginalLikelihood[i] = self.calculateMarginalLikelihood(i)
         for pair in itertools.combinations(np.arange(self.numOfFeatures), 2):
             self.LogR[pair[::-1]] = self.LogR[pair] = self.calculateLogR_ij(pair)
-            print pair, self.LogR[pair]
-        print('*****************')
+        #     print pair, self.LogR[pair]
+        # print('*****************')
         self.rescalingParameter()
         return 0
                     
@@ -128,10 +144,13 @@ class DependecyModel:
     def membershipTest(self, row):
         LogR_new = self.updatedLogR(row)
         rescaled_R_new = self.rescaleMatrix(LogR_new)
-        dependencyPart = np.log(np.linalg.det(self.laplacian(rescaled_R_new)[1:, 1:]))
-        independentPart = self.independentModel(row)
+        # newDeterminant = np.log(np.linalg.det(self.laplacian(rescaled_R_new) + \
+        #                                         np.identity(self.numOfFeatures)))                
+        dependencyPart = np.log(np.linalg.det(self.laplacian(rescaled_R_new)[1:, 1:])) - self.determinant
+        # dependencyPart = newDeterminant - self.determinant
+        independentPart = self.independentModel(row) 
         # print dependencyPart - self.determinant
-        print ('X', independentPart + dependencyPart, independentPart, dependencyPart)
+        # print ('X', independentPart + dependencyPart, independentPart, dependencyPart)
         return (dependencyPart + independentPart)
 
 
@@ -149,7 +168,7 @@ class DependecyModel:
             N = np.sum(self.singleFreqMatrix[i])
             newLikelihood[i] += gammaln(N)
             newLikelihood[i] -= gammaln(N + 1.)
-        return np.sum(newLikelihood)
+        return np.sum(newLikelihood) - self.independentLikelihood
                     
                     
     def updatedLogR(self, row):        
@@ -169,7 +188,7 @@ class DependecyModel:
             logR_new[pair] += gammaln(N_j[row[j] - self.__offset])
             logR_new[pair] -= gammaln(N_j[row[j] - self.__offset] + 1.0)
             logR_new[pair[::-1]] = logR_new[pair]
-            print(pair, logR_new[pair])
+            # print(pair, logR_new[pair])
         return logR_new
 
     
@@ -215,4 +234,3 @@ class DependecyModel:
         for i in xrange(matrix.shape[0]):
             new_matrix[i,i] = sums[i]
         return new_matrix
-        

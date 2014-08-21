@@ -1,4 +1,5 @@
 
+
 import csv
 import operator
 import numpy as np
@@ -174,6 +175,7 @@ def main():
     # print(np.exp(dependencyModel[1].giveMarginalProbabilities(0)))
     # print(np.exp(dependencyModel[1].giveMarginalProbabilities(7)))
     # exit()
+    # exit()
     test = lambda p, t: '+' if p==t else '-'
     for matrixRow in testMatrix:
         row = np.ravel(matrixRow)  # converting it to an array
@@ -181,14 +183,15 @@ def main():
         for classId, model in dependencyModel.items():
             pred[classId] = model.membershipTest(row[1:])
         bestPrediction = max(pred.iteritems(), key=operator.itemgetter(1))[0]
-        p = (pred[bestPrediction])               
+        evidence = np.sum(np.exp(pred.values()))
+        p = np.exp(pred[bestPrediction]) / evidence
         naive = {}
         for classId, model in dependencyModel.items():
             naive[classId] = model.independentModel(row[1:])
-        naiveBestPrediction = max(pred.iteritems(), key=operator.itemgetter(1))[0]
-        # evidence = np.sum(np.exp(naive.values()))
-        # naiveP = np.exp(naive[bestPrediction]) / evidence
-        naiveP = naive[bestPrediction]
+        naiveBestPrediction = max(naive.iteritems(), key=operator.itemgetter(1))[0]   
+        evidence = np.sum(np.exp(naive.values()))
+        naiveP = np.exp(naive[naiveBestPrediction]) / evidence
+        # naiveP = naive[naiveBestPrediction]
         print '\t'.join([
             str(bestPrediction),
             str(p),
