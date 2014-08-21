@@ -170,23 +170,25 @@ def main():
         loadAllData(args.trainData, args.testData, args.featureLength)
     model = independentProbabilities(trainMatrix, zeroIndexed, featureLengthVector)
     dependencyModel = generateDependencyModels(trainMatrix, featureLengthVector, zeroIndexed)
-    print dependencyModel[1].getPairPosition((0,1))
-    exit()
-    test = lambda p, t: '+' if p==t else '-'   
+    # print dependencyModel[1].givePairPosition((0,7))
+    # print(np.exp(dependencyModel[1].giveMarginalProbabilities(0)))
+    # print(np.exp(dependencyModel[1].giveMarginalProbabilities(7)))
+    # exit()
+    test = lambda p, t: '+' if p==t else '-'
     for matrixRow in testMatrix:
         row = np.ravel(matrixRow)  # converting it to an array
         pred = {}
         for classId, model in dependencyModel.items():
             pred[classId] = model.membershipTest(row[1:])
         bestPrediction = max(pred.iteritems(), key=operator.itemgetter(1))[0]
-        evidence = np.sum(np.exp(pred.values()))
-        p = np.exp(pred[bestPrediction]) / evidence        
+        p = (pred[bestPrediction])               
         naive = {}
         for classId, model in dependencyModel.items():
-            naive[classId] = model.naiveByesScore(row[1:])
+            naive[classId] = model.independentModel(row[1:])
         naiveBestPrediction = max(pred.iteritems(), key=operator.itemgetter(1))[0]
-        evidence = np.sum(np.exp(naive.values()))
-        naiveP = np.exp(naive[bestPrediction]) / evidence
+        # evidence = np.sum(np.exp(naive.values()))
+        # naiveP = np.exp(naive[bestPrediction]) / evidence
+        naiveP = naive[bestPrediction]
         print '\t'.join([
             str(bestPrediction),
             str(p),
