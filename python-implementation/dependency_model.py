@@ -57,6 +57,15 @@ class DependecyModel:
         return 0
 
 
+    def changeRescalingParams(self, new_K):
+        self.__K = float(new_K)
+        self.rescalingParameter()
+        rescaled_R = self.rescaleMatrix(self.LogR)
+        self.determinant = np.log(np.linalg.det(self.laplacian(rescaled_R)[1:, 1:]))
+        # print(self.determinant, self.__K, self.alpha)
+        return 0
+
+
     def fittingRho(self):
         rescaled_R = self.rescaleMatrix(self.LogR)        
         rho = 0.01
@@ -118,8 +127,6 @@ class DependecyModel:
             self.marginalLikelihood[i] = self.calculateMarginalLikelihood(i)
         for pair in itertools.combinations(np.arange(self.numOfFeatures), 2):
             self.LogR[pair[::-1]] = self.LogR[pair] = self.calculateLogR_ij(pair)
-        #     print pair, self.LogR[pair]
-        # print('*****************')
         self.rescalingParameter()
         return 0
                     
@@ -147,10 +154,7 @@ class DependecyModel:
         # newDeterminant = np.log(np.linalg.det(self.laplacian(rescaled_R_new) + \
         #                                         np.identity(self.numOfFeatures)))                
         dependencyPart = np.log(np.linalg.det(self.laplacian(rescaled_R_new)[1:, 1:])) - self.determinant
-        # dependencyPart = newDeterminant - self.determinant
         independentPart = self.independentModel(row) 
-        # print dependencyPart - self.determinant
-        # print ('X', independentPart + dependencyPart, independentPart, dependencyPart)
         return (dependencyPart + independentPart)
 
 
@@ -168,7 +172,7 @@ class DependecyModel:
             N = np.sum(self.singleFreqMatrix[i])
             newLikelihood[i] += gammaln(N)
             newLikelihood[i] -= gammaln(N + 1.)
-        return np.sum(newLikelihood) - self.independentLikelihood
+        return (np.sum(newLikelihood) - self.independentLikelihood)
                     
                     
     def updatedLogR(self, row):        
@@ -188,7 +192,6 @@ class DependecyModel:
             logR_new[pair] += gammaln(N_j[row[j] - self.__offset])
             logR_new[pair] -= gammaln(N_j[row[j] - self.__offset] + 1.0)
             logR_new[pair[::-1]] = logR_new[pair]
-            # print(pair, logR_new[pair])
         return logR_new
 
     

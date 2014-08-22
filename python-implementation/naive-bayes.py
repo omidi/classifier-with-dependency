@@ -5,6 +5,7 @@ import operator
 import numpy as np
 from feature_pairs import *
 from dependency_model import DependecyModel
+import random
 
 pseudo_count = 0.5
 
@@ -163,48 +164,126 @@ def generateDependencyModels(trainMatrix, featureLengthVector, zeroIndexed):
     for classId in dependencyModel.keys():
         dependencyModel[classId].finalizeModel()
     return dependencyModel
-        
+
+
+
+def testModel(dependencyModels, testMatrix):
+    dep_TP = 0
+    indep_TP = 0
+    for matrixRow in testMatrix:
+        row = np.ravel(matrixRow)  # converting it to an array
+        pred = {}
+        for classId, model in dependencyModels.items():
+            pred[classId] = model.membershipTest(row[1:])
+        bestPrediction = max(pred.iteritems(), key=operator.itemgetter(1))[0]
+        if bestPrediction == row[0]:
+            dep_TP += 1
+        naive = {}
+        for classId, model in dependencyModels.items():
+            naive[classId] = model.independentModel(row[1:])
+        naiveBestPrediction = max(naive.iteritems(), key=operator.itemgetter(1))[0]   
+        if naiveBestPrediction == row[0]:
+            indep_TP += 1
+    return (dep_TP, indep_TP)
+
+
+def testModelOnlyDep(dependencyModels, testMatrix):
+    dep_TP = 0
+    for matrixRow in testMatrix:
+        row = np.ravel(matrixRow)  # converting it to an array
+        pred = {}
+        for classId, model in dependencyModels.items():
+            pred[classId] = model.membershipTest(row[1:])
+        bestPrediction = max(pred.iteritems(), key=operator.itemgetter(1))[0]
+        if bestPrediction == row[0]:
+            dep_TP += 1
+    return float(dep_TP)
+
+
+def corssValidationFittingK(trainMatrix, featureLengthVector, zeroIndexed):
+    numOfRows = trainMatrix.shape[0]
+    index = np.arange(numOfRows)
+    random.shuffle(index)
+    numOfCrossValidationRound = 4
+    numOfDataInTest = numOfRows / 4    
+    for crossValidationRound in np.arange(numOfCrossValidationRound):
+        dependencyModel = {}
+        trainIndex = [index[n] for n in np.arange(0, crossValidationRound*numOfDataInTest)] + \
+            [index[n] for n in \
+             np.arange(crossValidationRound*numOfDataInTest+numOfDataInTest, numOfRows)]
+        for n in trainIndex:
+            classId = trainMatrix[n, 0]
+            row = np.ravel(trainMatrix[n, 1:])
+            dependencyModel.setdefault(classId, DependecyModel(featureLengthVector, zeroIndexed))
+            dependencyModel[classId].addToPairFreqMatrix(row)
+
+        for classId in dependencyModel.keys():
+            dependencyModel[classId].finalizeModel()
+            
+        testIndex = [index[n] for n in \
+                     np.arange(crossValidationRound*numOfDataInTest, (crossValidationRound+1)*numOfDataInTest)]
+        best_K = 1.
+        best_res = 0.
+        for K in np.linspace(1., 40, 25):
+            res = 0.
+            for model in dependencyModel.values():
+                model.changeRescalingParams(K)
+            res = testModelOnlyDep(dependencyModel, trainMatrix[testIndex, ])
+            if res > best_res:
+                best_res = res
+                best_K = K
+            print round(K), res/numOfDataInTest
+        print 'Best K is: ', best_K
+    return best_K
+                                 
     
 def main():
     args = arguments()
     testMatrix, trainMatrix, featureLengthVector, zeroIndexed = \
         loadAllData(args.trainData, args.testData, args.featureLength)
-    model = independentProbabilities(trainMatrix, zeroIndexed, featureLengthVector)
+    # model = independentProbabilities(trainMatrix, zeroIndexed, featureLengthVector)
+    corssValidationFittingK(trainMatrix, featureLengthVector, zeroIndexed)
+    exit()
     dependencyModel = generateDependencyModels(trainMatrix, featureLengthVector, zeroIndexed)
-    # print dependencyModel[1].givePairPosition((0,7))
-    # print(np.exp(dependencyModel[1].giveMarginalProbabilities(0)))
-    # print(np.exp(dependencyModel[1].giveMarginalProbabilities(7)))
-    # exit()
-    # exit()
-    test = lambda p, t: '+' if p==t else '-'
-    for matrixRow in testMatrix:
-        row = np.ravel(matrixRow)  # converting it to an array
-        pred = {}
-        for classId, model in dependencyModel.items():
-            pred[classId] = model.membershipTest(row[1:])
-        bestPrediction = max(pred.iteritems(), key=operator.itemgetter(1))[0]
-        evidence = np.sum(np.exp(pred.values()))
-        p = np.exp(pred[bestPrediction]) / evidence
-        naive = {}
-        for classId, model in dependencyModel.items():
-            naive[classId] = model.independentModel(row[1:])
-        naiveBestPrediction = max(naive.iteritems(), key=operator.itemgetter(1))[0]   
-        evidence = np.sum(np.exp(naive.values()))
-        naiveP = np.exp(naive[naiveBestPrediction]) / evidence
-        # naiveP = naive[naiveBestPrediction]
-        print '\t'.join([
-            str(bestPrediction),
-            str(p),
-            str(naiveBestPrediction),
-            str(naiveP),
-            str(row[0]),
-            test(bestPrediction, row[0]),
-            test(naiveBestPrediction, row[0]),
-            ])
+    
+    # # print '\t'.join(['K', 'dep', 'indep'])
+    # totalRows = float(testMatrix.shape[0])
+    # for k in np.linspace(1.0, 30, 30):
+    #     for model in dependencyModel.values():
+    #         model.changeRescalingParams(k)
+    #     res = testModel(dependencyModel, testMatrix)
+    #     print '\t'.join([
+    #         '%0.3f' % k,
+    #         '%0.3f' % (res[0]/totalRows),
+    #         '%0.3f' % (res[1]/totalRows),
+    #         ])
         
-
-
-    # print performanceCheck(predictions)    
+    # test = lambda p, t: '+' if p==t else '-'
+    # for matrixRow in testMatrix:
+    #     row = np.ravel(matrixRow)  # converting it to an array
+    #     pred = {}
+    #     for classId, model in dependencyModel.items():
+    #         pred[classId] = model.membershipTest(row[1:])
+    #     bestPrediction = max(pred.iteritems(), key=operator.itemgetter(1))[0]
+    #     evidence = np.sum(np.exp(pred.values()))
+    #     p = np.exp(pred[bestPrediction]) / evidence
+    #     naive = {}
+    #     for classId, model in dependencyModel.items():
+    #         naive[classId] = model.independentModel(row[1:])
+    #     naiveBestPrediction = max(naive.iteritems(), key=operator.itemgetter(1))[0]   
+    #     evidence = np.sum(np.exp(naive.values()))
+    #     naiveP = np.exp(naive[naiveBestPrediction]) / evidence
+    #     # naiveP = naive[naiveBestPrediction]
+    #     print '\t'.join([
+    #         str(bestPrediction),
+    #         str(p),
+    #         str(naiveBestPrediction),
+    #         str(naiveP),
+    #         str(row[0]),
+    #         test(bestPrediction, row[0]),
+    #         test(naiveBestPrediction, row[0]),
+    #         ])
+            
     
 if __name__ == '__main__':
     main()
