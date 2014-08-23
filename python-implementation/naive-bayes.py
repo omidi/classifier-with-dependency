@@ -189,15 +189,22 @@ def testModel(dependencyModels, testMatrix):
 
 def testModelOnlyDep(dependencyModels, testMatrix):
     dep_TP = 0
+    errorProbability = 0.
     for matrixRow in testMatrix:
         row = np.ravel(matrixRow)  # converting it to an array
         pred = {}
         for classId, model in dependencyModels.items():
             pred[classId] = model.membershipTest(row[1:])
         bestPrediction = max(pred.iteritems(), key=operator.itemgetter(1))[0]
+        normalization = sum( map(np.exp, pred.values()) )
         if bestPrediction == row[0]:
             dep_TP += 1
-    return float(dep_TP)
+            errorProbability += (1. - (np.exp(pred[bestPrediction]) / normalization))
+        else:
+            for classId, val in pred.items():
+                if classId != row[0]:
+                    errorProbability += (np.exp(val) / normalization)
+    return errorProbability / testMatrix.shape[0]
 
 
 def corssValidationFittingK(trainMatrix, featureLengthVector, zeroIndexed):
@@ -205,7 +212,7 @@ def corssValidationFittingK(trainMatrix, featureLengthVector, zeroIndexed):
     index = np.arange(numOfRows)
     random.shuffle(index)
     numOfCrossValidationRound = 4
-    numOfDataInTest = numOfRows / 4    
+    numOfDataInTest = numOfRows / numOfCrossValidationRound    
     for crossValidationRound in np.arange(numOfCrossValidationRound):
         dependencyModel = {}
         trainIndex = [index[n] for n in np.arange(0, crossValidationRound*numOfDataInTest)] + \
@@ -223,17 +230,17 @@ def corssValidationFittingK(trainMatrix, featureLengthVector, zeroIndexed):
         testIndex = [index[n] for n in \
                      np.arange(crossValidationRound*numOfDataInTest, (crossValidationRound+1)*numOfDataInTest)]
         best_K = 1.
-        best_res = 0.
-        for K in np.linspace(1., 40, 25):
+        best_res = 1.
+        for K in np.linspace(1., 30, 30):
             res = 0.
             for model in dependencyModel.values():
                 model.changeRescalingParams(K)
             res = testModelOnlyDep(dependencyModel, trainMatrix[testIndex, ])
-            if res > best_res:
+            if res < best_res:
                 best_res = res
                 best_K = K
-            print round(K), res/numOfDataInTest
-        print 'Best K is: ', best_K
+            # print round(K), res
+        print 'Best K is: ', best_K, '   with error probability: ', best_res
     return best_K
                                  
     
