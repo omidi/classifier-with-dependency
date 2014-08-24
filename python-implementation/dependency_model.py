@@ -59,7 +59,7 @@ class DependecyModel:
 
     def changeRescalingParams(self, new_K):
         self.__K = float(new_K)
-        self.rescalingParameter()
+        self.rescalingParame-ter()
         rescaled_R = self.rescaleMatrix(self.LogR)
         self.determinant = np.log(np.linalg.det(self.laplacian(rescaled_R)[1:, 1:]))
         # print(self.determinant, self.__K, self.alpha)

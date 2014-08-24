@@ -212,7 +212,8 @@ def corssValidationFittingK(trainMatrix, featureLengthVector, zeroIndexed):
     index = np.arange(numOfRows)
     random.shuffle(index)
     numOfCrossValidationRound = 4
-    numOfDataInTest = numOfRows / numOfCrossValidationRound    
+    numOfDataInTest = numOfRows / numOfCrossValidationRound
+    results = {}
     for crossValidationRound in np.arange(numOfCrossValidationRound):
         dependencyModel = {}
         trainIndex = [index[n] for n in np.arange(0, crossValidationRound*numOfDataInTest)] + \
@@ -240,8 +241,9 @@ def corssValidationFittingK(trainMatrix, featureLengthVector, zeroIndexed):
                 best_res = res
                 best_K = K
             # print round(K), res
-        print 'Best K is: ', best_K, '   with error probability: ', best_res
-    return best_K
+        results[best_K] = best_res
+        # print 'Best K is: ', best_K, '   with error probability: ', best_res
+    return min(results.iteritems(), key=operator.itemgetter(0))[0]
                                  
     
 def main():
@@ -249,10 +251,9 @@ def main():
     testMatrix, trainMatrix, featureLengthVector, zeroIndexed = \
         loadAllData(args.trainData, args.testData, args.featureLength)
     # model = independentProbabilities(trainMatrix, zeroIndexed, featureLengthVector)
-    corssValidationFittingK(trainMatrix, featureLengthVector, zeroIndexed)
-    exit()
+    crossValidatedK = corssValidationFittingK(trainMatrix, featureLengthVector, zeroIndexed)
     dependencyModel = generateDependencyModels(trainMatrix, featureLengthVector, zeroIndexed)
-    
+    print(crossValidatedK)
     # # print '\t'.join(['K', 'dep', 'indep'])
     # totalRows = float(testMatrix.shape[0])
     # for k in np.linspace(1.0, 30, 30):
