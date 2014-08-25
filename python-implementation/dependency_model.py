@@ -46,9 +46,9 @@ class DependecyModel:
         self.calculateLogR()
         self.rescalingParameter()
         rescaled_R = self.rescaleMatrix(self.LogR)
-        self.determinant = np.log(np.linalg.det(self.laplacian(rescaled_R)[1:, 1:]))
-        # self.determinant = np.log(np.linalg.det(self.laplacian(rescaled_R) + \
-        #                                         np.identity(self.numOfFeatures)))        
+        # self.determinant = np.log(np.linalg.det(self.laplacian(rescaled_R)[1:, 1:]))
+        self.determinant = np.log(np.linalg.det(self.laplacian(rescaled_R) + \
+                                                np.identity(self.numOfFeatures)))        
         self.singleColumnLikelihood = np.array([self.calculateSingleColumnLikelihood(i) \
                                         for i in xrange(self.numOfFeatures)])
         self.independentLikelihood = np.sum(self.singleColumnLikelihood)
@@ -59,9 +59,11 @@ class DependecyModel:
 
     def changeRescalingParams(self, new_K):
         self.__K = float(new_K)
-        self.rescalingParame-ter()
+        self.rescalingParameter()
         rescaled_R = self.rescaleMatrix(self.LogR)
-        self.determinant = np.log(np.linalg.det(self.laplacian(rescaled_R)[1:, 1:]))
+        # self.determinant = np.log(np.linalg.det(self.laplacian(rescaled_R)[1:, 1:]))
+        self.determinant = np.log(np.linalg.det(self.laplacian(rescaled_R) + \
+                                                np.identity(self.numOfFeatures)))                
         # print(self.determinant, self.__K, self.alpha)
         return 0
 
@@ -151,9 +153,9 @@ class DependecyModel:
     def membershipTest(self, row):
         LogR_new = self.updatedLogR(row)
         rescaled_R_new = self.rescaleMatrix(LogR_new)
-        # newDeterminant = np.log(np.linalg.det(self.laplacian(rescaled_R_new) + \
-        #                                         np.identity(self.numOfFeatures)))                
-        dependencyPart = np.log(np.linalg.det(self.laplacian(rescaled_R_new)[1:, 1:])) - self.determinant
+        dependencyPart = np.log(np.linalg.det(self.laplacian(rescaled_R_new) + \
+                                                np.identity(self.numOfFeatures))) - self.determinant
+        # dependencyPart = np.log(np.linalg.det(self.laplacian(rescaled_R_new)[1:, 1:])) - self.determinant
         independentPart = self.independentModel(row) 
         return (dependencyPart + independentPart)
 
