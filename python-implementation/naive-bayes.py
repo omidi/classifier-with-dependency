@@ -208,6 +208,18 @@ def testModelOnlyDep(dependencyModels, testMatrix):
     return errorProbability / testMatrix.shape[0]
 
 
+def fitPriorModel(trainMatrix):
+    classes = {}
+    for a_row in trainMatrix:
+        row = np.ravel(a_row)
+        classes.setdefault(row[0], 1.)
+        classes[row[0]] += 1.
+    normalization = np.log(np.sum(classes.values()))
+    for classId, val in classes.items():
+        classes[classId] = np.log(val) - normalization
+    return classes
+
+
 def corssValidationFittingK(trainMatrix, featureLengthVector, zeroIndexed):
     numOfRows = trainMatrix.shape[0]
     index = np.arange(numOfRows)
@@ -234,7 +246,7 @@ def corssValidationFittingK(trainMatrix, featureLengthVector, zeroIndexed):
                      np.arange(crossValidationRound*numOfDataInTest, (crossValidationRound+1)*numOfDataInTest)]
         best_K = 1.
         best_res = 1.
-        for K in np.linspace(1., 30, 30):
+        for K in np.linspace(1., 30, 40):
             res = 0.
             for model in dependencyModel.values():
                 model.changeRescalingParams(K)
@@ -253,6 +265,7 @@ def main():
     args = arguments()
     testMatrix, trainMatrix, featureLengthVector, zeroIndexed = \
         loadAllData(args.trainData, args.testData, args.featureLength)
+    prior = fitPriorModel(trainMatrix)
     # model = independentProbabilities(trainMatrix, zeroIndexed, featureLengthVector)
     fitted_K = corssValidationFittingK(trainMatrix, featureLengthVector, zeroIndexed)
     print 'Fitted K after cross-validation: ', fitted_K
@@ -280,7 +293,7 @@ def main():
         p = np.exp(pred[bestPrediction]) / evidence
         naive = {}
         for classId, model in dependencyModel.items():
-            naive[classId] = model.independentModel(row[1:])
+            naive[classId] = prior[classId] + model.independentModel(row[1:])
         naiveBestPrediction = max(naive.iteritems(), key=operator.itemgetter(1))[0]   
         evidence = np.sum(np.exp(naive.values()))
         naiveP = np.exp(naive[naiveBestPrediction]) / evidence
