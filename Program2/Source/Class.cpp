@@ -89,7 +89,7 @@ void Class::calculate_logR_matrix(){
 	}
 	alpha_exponent = find_alpha_exponent(logR);
 //	logR_determinant = determinant(matrix_minor(laplacian_of(re_scale(logR, alpha_exponent))));
-	logR_determinant = calculate_determinant(laplacian_of(re_scale(logR, alpha_exponent)), logR.size() - 1);
+	logR_determinant = calculate_determinant(laplacian_of(re_scale(logR, alpha_exponent)), logR.size());
 	if (std::isinf(logR_determinant)){
 		logR_determinant = 0.;
 	}
@@ -151,6 +151,12 @@ inline double Class::calculate_determinant(std::vector <std::vector<double> > M,
 	return determinant;
 }
 
+std::vector <std::vector <double> > Class::add_with_identity_matrix(std::vector <std::vector<double> > M){
+	for(unsigned int i = 0; i < M.size(); i++){
+		M[i][i] += 1.0;
+	}
+	return M;
+}
 
 bnu::matrix<double> Class::matrix_minor(std::vector <std::vector<double> > M){
 	bnu::matrix<double> res(M.size()-1, M.size()-1);
@@ -171,7 +177,8 @@ std::vector <std::vector<double> > Class::laplacian_of(std::vector <std::vector<
 			sum += M[i][j];
 			L[i][j] = -M[i][j];
 		}
-		L[i][i] = sum ; //	I didn't use "- M[i][i]" because logR[i][i] is 0
+		L[i][i] = sum + 1.0; //	I didn't use "- M[i][i]" because logR[i][i] is 0
+							 // for adding the identity matrix to the Laplacian matrix
 	}
 	return L;
 }
@@ -208,7 +215,7 @@ double Class::membership_test(std::vector<string> feature_vector){
 		if (!std::isinf(logR_determinant)){
 		std::vector <std::vector<double> > new_logR = logR_plus_one(feature_vector);
 		double new_alpha_exponent = find_alpha_exponent(new_logR);
-		double new_determinant = calculate_determinant(laplacian_of(re_scale(new_logR, new_alpha_exponent)), new_logR.size() - 1);
+		double new_determinant = calculate_determinant(laplacian_of(re_scale(new_logR, new_alpha_exponent)), new_logR.size()-1);
 //		double new_determinant = determinant(matrix_minor(laplacian_of(re_scale(new_logR, new_alpha_exponent))));
 		if (std::isinf(new_determinant)){
 			new_determinant = 0.;

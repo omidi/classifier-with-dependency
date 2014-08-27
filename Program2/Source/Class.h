@@ -51,6 +51,7 @@ public:
 	inline double calculate_determinant(std::vector <std::vector<double> >, int);
 	double membership_test(vector<string>);
 	double naive_bayes_membershiptest(vector<string>);
+	std::vector <std::vector<double> > add_with_identity_matrix(std::vector <std::vector<double> >);
 	virtual ~Class();
 };
 

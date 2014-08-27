@@ -86,10 +86,32 @@ class DependecyModel:
     
     def addToPairFreqMatrix(self, row):
         for pair in itertools.combinations(np.arange(self.numOfFeatures), 2):
-            i,j = (row[pair[0]] - self.__offset), (row[pair[1]] - self.__offset)
-            self.pairFreqMatrix[pair][i][j] += 1.0
+            if row[pair[0]]!='-' and row[pair[1]]!='-':
+                i,j = (row[pair[0]] - self.__offset), (row[pair[1]] - self.__offset)
+                self.pairFreqMatrix[pair][i][j] += 1.0
+            elif row[pair[0]]=='-' and row[pair[1]]!='-':
+                j = int(row[pair[1]]) - self.__offset
+                weight_i = 1.0 / self.featureLengthVector[pair[0]]
+                for i in xrange(self.featureLengthVector[pair[0]]):
+                    self.pairFreqMatrix[pair][i][j] += weight_i
+            elif row[pair[0]]!='-' and row[pair[1]]=='-':
+                i = int(row[pair[0]]) - self.__offset
+                weight_j = 1.0 / self.featureLengthVector[pair[1]]
+                for j in xrange(self.featureLengthVector[pair[1]]):
+                    self.pairFreqMatrix[pair][i][j] += weight_j
+            else:
+                weight = 1.0 / (self.featureLengthVector[pair[0]]*self.featureLengthVector[pair[1]])
+                for i in xrange(self.featureLengthVector[pair[0]]):
+                    for j in xrange(self.featureLengthVector[pair[1]]):
+                        self.pairFreqMatrix[pair][i][j] += weight
+            
         for i in xrange(self.numOfFeatures):
-            self.singleFreqMatrix[i][row[i] - self.__offset] += 1.0
+            if row[i] != '-':
+                self.singleFreqMatrix[i][row[i] - self.__offset] += 1.0
+            else:
+                weight = 1.0 / self.featureLengthVector[i]
+                for f in xrange(self.featureLengthVector[i]):
+                    self.singleFreqMatrix[i][f] += weight            
         return 0
 
     
@@ -125,8 +147,8 @@ class DependecyModel:
         self.LogR = \
           np.matrix(np.zeros(self.numOfFeatures**2).reshape(self.numOfFeatures,  \
                                                             self.numOfFeatures))
-        for i in xrange(self.numOfFeatures):
-            self.marginalLikelihood[i] = self.calculateMarginalLikelihood(i)
+        # for i in xrange(self.numOfFeatures):
+        #     self.marginalLikelihood[i] = self.calculateMarginalLikelihood(i)
         for pair in itertools.combinations(np.arange(self.numOfFeatures), 2):
             self.LogR[pair[::-1]] = self.LogR[pair] = self.calculateLogR_ij(pair)
         self.rescalingParameter()
@@ -160,20 +182,26 @@ class DependecyModel:
         return (dependencyPart + independentPart)
 
 
-    def naiveByesScore(self, row):
+    def naiveBayesScore(self, row):
         score = np.sum([self.marginalLikelihood[i][row[i] - self.__offset] \
             for i in xrange(self.numOfFeatures)])
         return score
 
 
     def independentModel(self, row):
-        newLikelihood = np.copy(self.singleColumnLikelihood)
+        newLikelihood = np.copy(self.singleColumnLikelihood)        
         for i in xrange(self.numOfFeatures):
-            newLikelihood[i] -= gammaln(self.singleFreqMatrix[i][row[i] - self.__offset])
-            newLikelihood[i] += gammaln(self.singleFreqMatrix[i][row[i] - self.__offset] + 1.)
             N = np.sum(self.singleFreqMatrix[i])
             newLikelihood[i] += gammaln(N)
-            newLikelihood[i] -= gammaln(N + 1.)
+            newLikelihood[i] -= gammaln(N + 1.)            
+            if row[i] != '-':
+                newLikelihood[i] -= gammaln(self.singleFreqMatrix[i][row[i] - self.__offset])
+                newLikelihood[i] += gammaln(self.singleFreqMatrix[i][row[i] - self.__offset] + 1.)
+            else:
+                weight = 1.0 / self.featureLengthVector[i]
+                for f in xrange(self.featureLengthVector[i]):
+                    newLikelihood[i] -= gammaln(self.singleFreqMatrix[i][f])
+                    newLikelihood[i] += gammaln(self.singleFreqMatrix[i][f] + weight)
         return (np.sum(newLikelihood) - self.independentLikelihood)
                     
                     
@@ -186,14 +214,47 @@ class DependecyModel:
             N = np.sum(freq)
             nrows, ncols = freq.shape
             logR_new[pair] -= gammaln(N)
-            logR_new[pair] += gammaln(N + 1.0)
-            logR_new[pair] -= gammaln(freq[row[i] - self.__offset, row[j] - self.__offset])
-            logR_new[pair] += gammaln(freq[row[i] - self.__offset, row[j] - self.__offset] + 1.0)
-            logR_new[pair] += gammaln(N_i[row[i] - self.__offset])
-            logR_new[pair] -= gammaln(N_i[row[i] - self.__offset] + 1.0)
-            logR_new[pair] += gammaln(N_j[row[j] - self.__offset])
-            logR_new[pair] -= gammaln(N_j[row[j] - self.__offset] + 1.0)
-            logR_new[pair[::-1]] = logR_new[pair]
+            logR_new[pair] += gammaln(N + 1.0)            
+            if row[i]!='-' and row[j]!='-':
+                logR_new[pair] -= gammaln(freq[row[i] - self.__offset, row[j] - self.__offset])
+                logR_new[pair] += gammaln(freq[row[i] - self.__offset, row[j] - self.__offset] + 1.0)
+                logR_new[pair] += gammaln(N_i[row[i] - self.__offset])
+                logR_new[pair] -= gammaln(N_i[row[i] - self.__offset] + 1.0)
+                logR_new[pair] += gammaln(N_j[row[j] - self.__offset])
+                logR_new[pair] -= gammaln(N_j[row[j] - self.__offset] + 1.0)
+            elif row[i]=='-' and row[j]!='-':
+                weight_i = 1.0 / self.featureLengthVector[i]
+                for f_i in xrange(self.featureLengthVector[i]):
+                    logR_new[pair] -= gammaln(freq[f_i, row[j] - self.__offset])
+                    logR_new[pair] += gammaln(freq[f_i, row[j] - self.__offset] + weight_i)
+                    logR_new[pair] += gammaln(N_i[f_i])
+                    logR_new[pair] -= gammaln(N_i[f_i] + weight_i)
+                logR_new[pair] += gammaln(N_j[row[j] - self.__offset])
+                logR_new[pair] -= gammaln(N_j[row[j] - self.__offset] + 1.0)
+            elif row[i]!='-' and row[j]=='-':
+                weight_j = 1.0 / self.featureLengthVector[j]
+                for f_j in xrange(self.featureLengthVector[j]):
+                    logR_new[pair] -= gammaln(freq[row[i] - self.__offset, f_j])
+                    logR_new[pair] += gammaln(freq[row[i] - self.__offset, f_j] + weight_j)
+                    logR_new[pair] += gammaln(N_j[f_j])
+                    logR_new[pair] -= gammaln(N_j[f_j] + weight_j)                    
+                logR_new[pair] += gammaln(N_i[row[i] - self.__offset])
+                logR_new[pair] -= gammaln(N_i[row[i] - self.__offset] + 1.0)
+            else:
+                weight = 1.0 / (self.featureLengthVector[i]*self.featureLengthVector[j])
+                weight_j = 1.0 / self.featureLengthVector[j]
+                weight_i = 1.0 / self.featureLengthVector[i]
+                for f_i in xrange(self.featureLengthVector[i]):
+                    logR_new[pair] += gammaln(N_i[f_i])
+                    logR_new[pair] -= gammaln(N_i[f_i] + weight_i)                    
+                    for f_j in xrange(self.featureLengthVector[j]):
+                        logR_new[pair] -= gammaln(freq[f_i, f_j])
+                        logR_new[pair] += gammaln(freq[f_i, f_j] + weight)
+                for f_j in xrange(self.featureLengthVector[j]):
+                    logR_new[pair] += gammaln(N_j[f_j])
+                    logR_new[pair] -= gammaln(N_j[f_j] + weight_j)                    
+                    
+            logR_new[pair[::-1]] = logR_new[pair]                
         return logR_new
 
     

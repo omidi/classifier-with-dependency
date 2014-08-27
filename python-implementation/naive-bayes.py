@@ -104,6 +104,13 @@ def independentProbabilities(trainingMatrix, zeroIndexed, featureVector):
             classes[classId][f] = np.log( classes[classId][f] )
         classes[classId] = classes[classId] - normalizationConstant
     return classes
+
+
+def convertINT(x):
+    if x=='-':
+        return '-'
+    else:
+        return int(x)
                 
 
 def loadAllData(trainFile, testFile, featureLengthFile):
@@ -112,15 +119,18 @@ def loadAllData(trainFile, testFile, featureLengthFile):
         with open(testFile) as infTest:   
             featureLength = len(infTrain.readline().split()) - 1
             infTrain.seek(0) # go back to the beginning of the file 
-            trainData = [map(int, line.split()) for line in infTrain] 
-            testData = [map(int, line.split()) for line in infTest]
-    featureMatrix = np.matrix(trainData + testData, dtype=int)
-    trainMatrix = np.matrix(trainData, dtype=int)
-    testMatrix = np.matrix(testData, dtype=int)
+            trainData = [map(convertINT, line.split()) for line in infTrain] 
+            testData = [map(convertINT, line.split()) for line in infTest]
+    featureMatrix = np.matrix(trainData + testData)
+    trainMatrix = np.matrix(trainData)
+    testMatrix = np.matrix(testData)
     # counting the number of features for each column
-    minFeature = featureMatrix[:, 1:].min(axis=0)    
-    if np.any(minFeature == 0):  # not taking the class column (1-st column)
-        zeroIndexed = true
+    ###
+    # # # I might change this part, to perform min() over columns with - or unknown elements
+    # minFeature = featureMatrix[:, 1:].min(axis=0)    
+    # if np.any(minFeature == 0):  # not taking the class column (1-st column)
+    #     zeroIndexed = true
+    ###
     featureLengthVector = np.array([int(line.split()[-1])
                                     for line in open(featureLengthFile)])    
     return testMatrix, trainMatrix, featureLengthVector, zeroIndexed
@@ -224,7 +234,7 @@ def corssValidationFittingK(trainMatrix, featureLengthVector, zeroIndexed):
     numOfRows = trainMatrix.shape[0]
     index = np.arange(numOfRows)
     random.shuffle(index)
-    numOfCrossValidationRound = 4
+    numOfCrossValidationRound = 5
     numOfDataInTest = numOfRows / numOfCrossValidationRound
     K_values = []
     performance = []
@@ -238,10 +248,8 @@ def corssValidationFittingK(trainMatrix, featureLengthVector, zeroIndexed):
             row = np.ravel(trainMatrix[n, 1:])
             dependencyModel.setdefault(classId, DependecyModel(featureLengthVector, zeroIndexed))
             dependencyModel[classId].addToPairFreqMatrix(row)
-
         for classId in dependencyModel.keys():
-            dependencyModel[classId].finalizeModel()
-            
+            dependencyModel[classId].finalizeModel()            
         testIndex = [index[n] for n in \
                      np.arange(crossValidationRound*numOfDataInTest, (crossValidationRound+1)*numOfDataInTest)]
         best_K = 1.
@@ -256,6 +264,8 @@ def corssValidationFittingK(trainMatrix, featureLengthVector, zeroIndexed):
                 best_K = K
         K_values.append(best_K)
         performance.append(1.0 - best_res)
+    print K_values
+    print performance
     SUM = float(np.sum(performance))
     K = np.sum(np.array(K_values)*(np.array(performance) / SUM))
     return K
@@ -266,8 +276,8 @@ def main():
     testMatrix, trainMatrix, featureLengthVector, zeroIndexed = \
         loadAllData(args.trainData, args.testData, args.featureLength)
     prior = fitPriorModel(trainMatrix)
-    # model = independentProbabilities(trainMatrix, zeroIndexed, featureLengthVector)
-    fitted_K = corssValidationFittingK(trainMatrix, featureLengthVector, zeroIndexed)
+    # fitted_K = corssValidationFittingK(trainMatrix, featureLengthVector, zeroIndexed)
+    fitted_K = 10.
     print 'Fitted K after cross-validation: ', fitted_K
     dependencyModel = generateDependencyModels(trainMatrix, featureLengthVector, zeroIndexed, fitted_K)
     # # print '\t'.join(['K', 'dep', 'indep'])

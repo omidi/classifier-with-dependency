@@ -18,6 +18,7 @@ Decomposition::~Decomposition() {
 }
 
 
+/*
 std::vector<double>  Decomposition::QR_decomposition(std::vector<std::vector<double> > A, int n){
 	std::vector<double> R(n, .0);
 	std::vector<double> c(n, .0);
@@ -51,11 +52,11 @@ std::vector<double>  Decomposition::QR_decomposition(std::vector<std::vector<dou
 	}
 	return R;
 }
+*/
 
 
 double Decomposition::determinant(std::vector<std::vector<double> > A, int n){ 	// From Lukas Burger's code
-
-	//calculates the determinant in logscale, without the sign
+	  //calculates the determinant in logscale, without the sign
 	  //sign will be printed to STDERR
 	  //by setting n, one can specify whether one wants to calculate
 	  //the determinant of the whole matrix or a submatrix a[0....n][0....n]
@@ -70,10 +71,10 @@ double Decomposition::determinant(std::vector<std::vector<double> > A, int n){ 	
 	  for(i=0;i<n;i++){
 	    big=0.0;
 	    for(j=0;j<n;j++)
-	      if((temp=fabs(A[i][j]))>big) big=temp;
+	      if((temp = fabs(A[i][j]))>big) big=temp;
 	    if(big==0.0){
 //	    	cerr<<"Singular matrix in routine ludcmp"<<endl; exit(1);
-	    	return - std::numeric_limits<double>::infinity();
+	    	return -std::numeric_limits<double>::infinity();
 	    }
 	    vv[i]=1.0/big;
 	  }
@@ -128,7 +129,7 @@ double Decomposition::determinant(std::vector<std::vector<double> > A, int n){ 	
 	    // if(fabs(a[j][j])<min_diag){
 	    //  min_diag=fabs(a[j][j]);
 	    //}
-	    det+=log(fabs(A[j][j]));
+	    det += log(fabs(A[j][j]));
 	  }
 	  //cerr<<"signum is "<<signum<<endl;
 	  // cerr<<"det is "<<det<<endl;
