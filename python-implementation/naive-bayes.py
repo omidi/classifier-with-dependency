@@ -6,6 +6,7 @@ import numpy as np
 from feature_pairs import *
 from dependency_model import DependecyModel
 import random
+import re
 
 pseudo_count = 0.5
 
@@ -106,40 +107,30 @@ def independentProbabilities(trainingMatrix, zeroIndexed, featureVector):
     return classes
 
 
+missingData = re.compile('-|\?|\*|_')
 def convertINT(x):
-    if x=='-':
-        return '-'
+    if re.search(missingData, x):
+        return 0
     else:
         return int(x)
                 
 
 def loadAllData(trainFile, testFile, featureLengthFile):
-    zeroIndexed = False 
     with open(trainFile) as infTrain:
         with open(testFile) as infTest:   
             featureLength = len(infTrain.readline().split()) - 1
             infTrain.seek(0) # go back to the beginning of the file 
             trainData = [map(convertINT, line.split()) for line in infTrain] 
             testData = [map(convertINT, line.split()) for line in infTest]
-    featureMatrix = np.matrix(trainData + testData)
-    trainMatrix = np.matrix(trainData)
-    testMatrix = np.matrix(testData)
-    # counting the number of features for each column
-    ###
-    # # # I might change this part, to perform min() over columns with - or unknown elements
-    # minFeature = featureMatrix[:, 1:].min(axis=0)    
-    # if np.any(minFeature == 0):  # not taking the class column (1-st column)
-    #     zeroIndexed = true
-    ###
+    featureMatrix = np.matrix(trainData + testData, dtype=np.int)
+    trainMatrix = np.matrix(trainData, dtype=np.int)
+    testMatrix = np.matrix(testData, dtype=np.int)
     featureLengthVector = np.array([int(line.split()[-1])
-                                    for line in open(featureLengthFile)])    
-    return testMatrix, trainMatrix, featureLengthVector, zeroIndexed
+                                    for line in open(featureLengthFile)], dtype=np.int)    
+    return testMatrix, trainMatrix, featureLengthVector
 
 
-def classifiyTestSet(model, testMatrix, zeroIndexed):
-    offset = 0
-    if not zeroIndexed:
-        offset = 1
+def classifiyTestSet(model, testMatrix):
     numRows, numCols = testMatrix.shape
     predictions = []
     for matrixRow in testMatrix:
@@ -148,7 +139,7 @@ def classifiyTestSet(model, testMatrix, zeroIndexed):
         for classId in model.keys():
             likelihood[classId] = 0.
             for col in xrange(1, numCols):
-                likelihood[classId] += model[classId][col-1][row[col]-offset]
+                likelihood[classId] += model[classId][col-1][row[col]]
         bestPrediction = max(likelihood.iteritems(), key=operator.itemgetter(1))[0]
         normalization = sum( map(np.exp, likelihood.values()) )
         predictions.append( (
@@ -164,12 +155,12 @@ def performanceCheck(predictions):
     return np.sum([correctnessTest(p) for p in predictions])
 
 
-def generateDependencyModels(trainMatrix, featureLengthVector, zeroIndexed, K):
+def generateDependencyModels(trainMatrix, featureLengthVector, K):
     dependencyModel = {}
     for n in xrange(trainMatrix.shape[0]):  # go row by row
         classId = trainMatrix[n, 0]     # the first column is reserved for the classID
         row = np.ravel(trainMatrix[n, 1:])
-        dependencyModel.setdefault(classId, DependecyModel(featureLengthVector, zeroIndexed))
+        dependencyModel.setdefault(classId, DependecyModel(featureLengthVector))
         dependencyModel[classId].addToPairFreqMatrix(row)
     for classId in dependencyModel.keys():
         dependencyModel[classId].finalizeModel()
@@ -230,7 +221,7 @@ def fitPriorModel(trainMatrix):
     return classes
 
 
-def corssValidationFittingK(trainMatrix, featureLengthVector, zeroIndexed):
+def corssValidationFittingK(trainMatrix, featureLengthVector):
     numOfRows = trainMatrix.shape[0]
     index = np.arange(numOfRows)
     random.shuffle(index)
@@ -246,7 +237,7 @@ def corssValidationFittingK(trainMatrix, featureLengthVector, zeroIndexed):
         for n in trainIndex:
             classId = trainMatrix[n, 0]
             row = np.ravel(trainMatrix[n, 1:])
-            dependencyModel.setdefault(classId, DependecyModel(featureLengthVector, zeroIndexed))
+            dependencyModel.setdefault(classId, DependecyModel(featureLengthVector))
             dependencyModel[classId].addToPairFreqMatrix(row)
         for classId in dependencyModel.keys():
             dependencyModel[classId].finalizeModel()            
@@ -273,24 +264,24 @@ def corssValidationFittingK(trainMatrix, featureLengthVector, zeroIndexed):
     
 def main():
     args = arguments()
-    testMatrix, trainMatrix, featureLengthVector, zeroIndexed = \
+    testMatrix, trainMatrix, featureLengthVector = \
         loadAllData(args.trainData, args.testData, args.featureLength)
     prior = fitPriorModel(trainMatrix)
-    # fitted_K = corssValidationFittingK(trainMatrix, featureLengthVector, zeroIndexed)
+    # fitted_K = corssValidationFittingK(trainMatrix, featureLengthVector)
     fitted_K = 10.
-    print 'Fitted K after cross-validation: ', fitted_K
-    dependencyModel = generateDependencyModels(trainMatrix, featureLengthVector, zeroIndexed, fitted_K)
-    # # print '\t'.join(['K', 'dep', 'indep'])
-    # totalRows = float(testMatrix.shape[0])
-    # for k in np.linspace(1.0, 30, 30):
-    #     for model in dependencyModel.values():
-    #         model.changeRescalingParams(k)
-    #     res = testModel(dependencyModel, testMatrix)
-    #     print '\t'.join([
-    #         '%0.3f' % k,
-    #         '%0.3f' % (res[0]/totalRows),
-    #         '%0.3f' % (res[1]/totalRows),
-    #         ])
+    # print 'Fitted K after cross-validation: ', fitted_K
+    dependencyModel = generateDependencyModels(trainMatrix, featureLengthVector, fitted_K)
+    # print '\t'.join(['K', 'dep', 'indep'])
+    totalRows = float(testMatrix.shape[0])
+    for k in np.linspace(1.0, 30, 30):
+        for model in dependencyModel.values():
+            model.changeRescalingParams(k)
+        res = testModel(dependencyModel, testMatrix)
+        print '\t'.join([
+            '%0.3f' % k,
+            '%0.3f' % (res[0]/totalRows),
+            '%0.3f' % (res[1]/totalRows),
+            ])
         
     test = lambda p, t: '+' if p==t else '-'
     for matrixRow in testMatrix:
